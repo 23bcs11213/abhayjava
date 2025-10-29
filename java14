@@ -1,0 +1,87 @@
+package com.example.jwtapp;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.filter.OncePerRequestFilter;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Date;
+import io.jsonwebtoken.*;
+
+@SpringBootApplication
+@RestController
+@RequestMapping("/api")
+public class JwtAppApplication {
+
+    private final String SECRET_KEY = "mysecretkey123456"; // Use environment variable in production
+
+    public static void main(String[] args) {
+        SpringApplication.run(JwtAppApplication.class, args);
+    }
+
+    // --- Authentication Endpoint ---
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestParam String username, @RequestParam String password) {
+        // Simple hardcoded authentication
+        if ("admin".equals(username) && "1234".equals(password)) {
+            String token = Jwts.builder()
+                    .setSubject(username)
+                    .setIssuedAt(new Date())
+                    .setExpiration(new Date(System.currentTimeMillis() + 3600_000)) // 1 hour
+                    .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
+                    .compact();
+            return ResponseEntity.ok().body("{\"token\":\"" + token + "\"}");
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("{\"error\":\"Invalid credentials\"}");
+        }
+    }
+
+    // --- Protected Endpoint ---
+    @GetMapping("/protected")
+    public ResponseEntity<?> protectedEndpoint(@RequestAttribute("username") String username) {
+        return ResponseEntity.ok("{\"message\":\"Hello " + username + ", you accessed a protected route!\"}");
+    }
+
+    // --- JWT Filter ---
+    @Bean
+    public OncePerRequestFilter jwtFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            FilterChain filterChain) throws ServletException, IOException {
+                String path = request.getRequestURI();
+                if (path.startsWith("/api/protected")) {
+                    String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+                    if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                        String token = authHeader.substring(7);
+                        try {
+                            Claims claims = Jwts.parser()
+                                    .setSigningKey(SECRET_KEY)
+                                    .parseClaimsJws(token)
+                                    .getBody();
+                            request.setAttribute("username", claims.getSubject());
+                        } catch (JwtException e) {
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            response.getWriter().write("{\"error\":\"Invalid or expired token\"}");
+                            return;
+                        }
+                    } else {
+                        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                        response.getWriter().write("{\"error\":\"Missing Authorization header\"}");
+                        return;
+                    }
+                }
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
+}
