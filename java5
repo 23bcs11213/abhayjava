@@ -1,0 +1,75 @@
+package com.example.sms.dao;
+
+import com.example.sms.model.Student;
+import com.mongodb.client.*;
+import org.bson.Document;
+import org.bson.types.ObjectId;
+
+import static com.mongodb.client.model.Filters.eq;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class StudentDAO {
+    private final MongoCollection<Document> collection;
+
+    public StudentDAO() {
+        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+        MongoDatabase database = mongoClient.getDatabase("schoolDB");
+        collection = database.getCollection("students");
+    }
+
+    // CREATE
+    public void addStudent(Student student) {
+        Document doc = new Document("name", student.getName())
+                .append("age", student.getAge())
+                .append("course", student.getCourse())
+                .append("grade", student.getGrade());
+        collection.insertOne(doc);
+        System.out.println("✅ Student added successfully!");
+    }
+
+    // READ (all)
+    public List<Student> getAllStudents() {
+        List<Student> students = new ArrayList<>();
+        try (MongoCursor<Document> cursor = collection.find().iterator()) {
+            while (cursor.hasNext()) {
+                Document doc = cursor.next();
+                Student student = new Student();
+                student.setId(doc.getObjectId("_id").toHexString());
+                student.setName(doc.getString("name"));
+                student.setAge(doc.getInteger("age"));
+                student.setCourse(doc.getString("course"));
+                student.setGrade(doc.getDouble("grade"));
+                students.add(student);
+            }
+        }
+        return students;
+    }
+
+    // READ (by ID)
+    public Student getStudentById(String id) {
+        Document doc = collection.find(eq("_id", new ObjectId(id))).first();
+        if (doc == null) return null;
+        Student student = new Student();
+        student.setId(doc.getObjectId("_id").toHexString());
+        student.setName(doc.getString("name"));
+        student.setAge(doc.getInteger("age"));
+        student.setCourse(doc.getString("course"));
+        student.setGrade(doc.getDouble("grade"));
+        return student;
+    }
+
+    // UPDATE
+    public void updateStudent(String id, double newGrade) {
+        collection.updateOne(eq("_id", new ObjectId(id)),
+                new Document("$set", new Document("grade", newGrade)));
+        System.out.println("✏️ Student grade updated.");
+    }
+
+    // DELETE
+    public void deleteStudent(String id) {
+        collection.deleteOne(eq("_id", new ObjectId(id)));
+        System.out.println("🗑️ Student deleted.");
+    }
+}
