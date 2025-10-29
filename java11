@@ -1,0 +1,88 @@
+package com.example.shoppingcart;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@SpringBootApplication
+public class ShoppingCartApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ShoppingCartApplication.class, args);
+    }
+
+    // --- In-memory product catalog ---
+    private static final Map<Integer, Map<String, Object>> products = new HashMap<>() {{
+        put(1, Map.of("id", 1, "name", "Laptop", "price", 1200.0));
+        put(2, Map.of("id", 2, "name", "Phone", "price", 800.0));
+        put(3, Map.of("id", 3, "name", "Headphones", "price", 150.0));
+    }};
+
+    // --- In-memory cart storage per user ---
+    private static final Map<String, Map<Integer, Integer>> carts = new HashMap<>();
+
+    // --- REST Controller ---
+    @RestController
+    @RequestMapping("/api")
+    public static class CartController {
+
+        // Get all products
+        @GetMapping("/products")
+        public Collection<Map<String, Object>> getProducts() {
+            return products.values();
+        }
+
+        // Add item to cart
+        @PostMapping("/cart/add")
+        public Map<String, Object> addToCart(@RequestParam String user,
+                                             @RequestParam int productId,
+                                             @RequestParam(defaultValue = "1") int quantity) {
+            if (!products.containsKey(productId)) {
+                return Map.of("error", "Product not found");
+            }
+            carts.putIfAbsent(user, new HashMap<>());
+            Map<Integer, Integer> cart = carts.get(user);
+            cart.put(productId, cart.getOrDefault(productId, 0) + quantity);
+
+            return Map.of("status", "added", "cart", cart);
+        }
+
+        // Remove item from cart
+        @PostMapping("/cart/remove")
+        public Map<String, Object> removeFromCart(@RequestParam String user,
+                                                  @RequestParam int productId) {
+            Map<Integer, Integer> cart = carts.get(user);
+            if (cart == null || !cart.containsKey(productId)) {
+                return Map.of("error", "Item not in cart");
+            }
+            cart.remove(productId);
+            return Map.of("status", "removed", "cart", cart);
+        }
+
+        // Get user cart
+        @GetMapping("/cart")
+        public Map<String, Object> getCart(@RequestParam String user) {
+            Map<Integer, Integer> cart = carts.getOrDefault(user, new HashMap<>());
+            double total = 0;
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Map.Entry<Integer, Integer> entry : cart.entrySet()) {
+                Map<String, Object> product = new HashMap<>(products.get(entry.getKey()));
+                int qty = entry.getValue();
+                product.put("quantity", qty);
+                product.put("totalPrice", (double) qty * (double) product.get("price"));
+                total += (double) product.get("totalPrice");
+                items.add(product);
+            }
+            return Map.of("user", user, "items", items, "total", total);
+        }
+
+        // Clear cart
+        @PostMapping("/cart/clear")
+        public Map<String, Object> clearCart(@RequestParam String user) {
+            carts.remove(user);
+            return Map.of("status", "cleared");
+        }
+    }
+}
