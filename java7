@@ -1,0 +1,93 @@
+package com.example.middleware;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.time.LocalDateTime;
+
+@SpringBootApplication
+public class MiddlewareDemoApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(MiddlewareDemoApplication.class, args);
+    }
+
+    // --- Logging Middleware ---
+    @Bean
+    public OncePerRequestFilter loggingFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            FilterChain filterChain)
+                    throws ServletException, IOException {
+                System.out.println("[LOG] " + LocalDateTime.now() +
+                        " - " + request.getMethod() + " " + request.getRequestURI());
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
+
+    // --- Bearer Token Authentication Middleware ---
+    @Bean
+    public OncePerRequestFilter authFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            FilterChain filterChain)
+                    throws ServletException, IOException {
+                String authHeader = request.getHeader("Authorization");
+
+                // Only protect /api/* endpoints
+                if (request.getRequestURI().startsWith("/api/")) {
+                    if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                        response.sendError(HttpStatus.UNAUTHORIZED.value(), "Missing or invalid Authorization header");
+                        return;
+                    }
+                    String token = authHeader.substring(7);
+                    // Simple token check (hardcoded for demo)
+                    if (!"mysecrettoken123".equals(token)) {
+                        response.sendError(HttpStatus.FORBIDDEN.value(), "Invalid token");
+                        return;
+                    }
+                }
+
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
+
+    // --- Sample Controller ---
+    @RestController
+    @RequestMapping("/api")
+    public static class ApiController {
+
+        @GetMapping("/hello")
+        public String hello() {
+            return "Hello, authorized user!";
+        }
+
+        @GetMapping("/data")
+        public String data() {
+            return "Sensitive data for authorized users only.";
+        }
+    }
+
+    @RestController
+    public static class PublicController {
+        @GetMapping("/public")
+        public String publicEndpoint() {
+            return "This is a public endpoint, no auth needed.";
+        }
+    }
+}
