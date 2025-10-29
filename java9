@@ -1,0 +1,71 @@
+package com.example.accounttransfer;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@SpringBootApplication
+public class AccountTransferApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(AccountTransferApplication.class, args);
+    }
+
+    // --- In-memory account storage ---
+    private static final Map<String, Double> accounts = new HashMap<>() {{
+        put("alice", 1000.0);
+        put("bob", 500.0);
+        put("charlie", 200.0);
+    }};
+
+    // --- Account Controller ---
+    @RestController
+    @RequestMapping("/api")
+    public static class AccountController {
+
+        @GetMapping("/balance/{username}")
+        public Map<String, Object> getBalance(@PathVariable String username) {
+            if (!accounts.containsKey(username)) {
+                return Map.of("error", "User not found");
+            }
+            return Map.of("user", username, "balance", accounts.get(username));
+        }
+
+        @PostMapping("/transfer")
+        public Map<String, Object> transfer(@RequestParam String from,
+                                            @RequestParam String to,
+                                            @RequestParam double amount) {
+            // Validate users
+            if (!accounts.containsKey(from)) {
+                return Map.of("error", "Sender not found");
+            }
+            if (!accounts.containsKey(to)) {
+                return Map.of("error", "Recipient not found");
+            }
+            if (amount <= 0) {
+                return Map.of("error", "Transfer amount must be positive");
+            }
+
+            double fromBalance = accounts.get(from);
+            if (fromBalance < amount) {
+                return Map.of("error", "Insufficient balance");
+            }
+
+            // Perform transfer
+            accounts.put(from, fromBalance - amount);
+            accounts.put(to, accounts.get(to) + amount);
+
+            return Map.of(
+                    "from", from,
+                    "to", to,
+                    "amount", amount,
+                    "fromBalance", accounts.get(from),
+                    "toBalance", accounts.get(to),
+                    "status", "success"
+            );
+        }
+    }
+}
