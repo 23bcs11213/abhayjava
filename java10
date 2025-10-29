@@ -1,0 +1,74 @@
+package com.example.reactaxios;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@SpringBootApplication
+public class ReactAxiosApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ReactAxiosApplication.class, args);
+    }
+
+    // --- In-memory "products" store ---
+    private static final Map<Integer, Map<String, Object>> products = new HashMap<>() {{
+        put(1, new HashMap<>() {{ put("id", 1); put("name", "Laptop"); put("price", 1200.0); }});
+        put(2, new HashMap<>() {{ put("id", 2); put("name", "Phone"); put("price", 800.0); }});
+    }};
+
+    // --- REST Controller ---
+    @RestController
+    @RequestMapping("/api/products")
+    @CrossOrigin(origins = "http://localhost:3000") // Allow React dev server
+    public static class ProductController {
+
+        // GET all products
+        @GetMapping
+        public Collection<Map<String, Object>> getAllProducts() {
+            return products.values();
+        }
+
+        // GET product by ID
+        @GetMapping("/{id}")
+        public Map<String, Object> getProduct(@PathVariable int id) {
+            if (!products.containsKey(id)) {
+                return Map.of("error", "Product not found");
+            }
+            return products.get(id);
+        }
+
+        // POST new product
+        @PostMapping
+        public Map<String, Object> addProduct(@RequestBody Map<String, Object> product) {
+            int id = products.size() + 1;
+            product.put("id", id);
+            products.put(id, product);
+            return product;
+        }
+
+        // PUT update product
+        @PutMapping("/{id}")
+        public Map<String, Object> updateProduct(@PathVariable int id,
+                                                 @RequestBody Map<String, Object> product) {
+            if (!products.containsKey(id)) {
+                return Map.of("error", "Product not found");
+            }
+            product.put("id", id);
+            products.put(id, product);
+            return product;
+        }
+
+        // DELETE product
+        @DeleteMapping("/{id}")
+        public Map<String, String> deleteProduct(@PathVariable int id) {
+            if (!products.containsKey(id)) {
+                return Map.of("error", "Product not found");
+            }
+            products.remove(id);
+            return Map.of("status", "deleted");
+        }
+    }
+}
