@@ -1,0 +1,32 @@
+import java.util.*;
+import java.util.concurrent.*;
+
+/**
+ * 🎟️ Concurrent Ticket Booking System
+ * Features: seat locking, automatic unlock, booking confirmation
+ */
+public class TicketBookingSystem {
+
+    // Enum for seat status
+    enum SeatStatus { AVAILABLE, LOCKED, BOOKED }
+
+    // Seat class
+    static class Seat {
+        int seatNumber;
+        SeatStatus status;
+        String lockedBy;
+        long lockTime; // timestamp when locked
+
+        Seat(int seatNumber) {
+            this.seatNumber = seatNumber;
+            this.status = SeatStatus.AVAILABLE;
+        }
+    }
+
+    // Seat manager with thread-safe operations
+    static class SeatManager {
+        private final Map<Integer, Seat> seats = new ConcurrentHashMap<>();
+        private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        private final long lockDurationMillis;
+
+        SeatM
