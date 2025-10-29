@@ -1,0 +1,121 @@
+package com.example.jwtbanking;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import javax.crypto.SecretKey;
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+@SpringBootApplication
+public class JwtBankingApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(JwtBankingApplication.class, args);
+    }
+
+    // Secret key for signing JWTs
+    private static final SecretKey SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    private static final long EXPIRATION_TIME = 1000 * 60 * 30; // 30 minutes
+
+    // --- JWT Authentication Filter ---
+    @Bean
+    public OncePerRequestFilter jwtFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            FilterChain filterChain)
+                    throws ServletException, IOException {
+                String authHeader = request.getHeader("Authorization");
+
+                // Protect /api/** endpoints
+                if (request.getRequestURI().startsWith("/api/")) {
+                    if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                        response.sendError(HttpStatus.UNAUTHORIZED.value(), "Missing or invalid Authorization header");
+                        return;
+                    }
+
+                    String token = authHeader.substring(7);
+                    try {
+                        Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
+                    } catch (JwtException e) {
+                        response.sendError(HttpStatus.FORBIDDEN.value(), "Invalid or expired JWT");
+                        return;
+                    }
+                }
+                filterChain.doFilter(request, response);
+            }
+        };
+    }
+
+    // --- Auth Controller (Login & Token Generation) ---
+    @RestController
+    public static class AuthController {
+
+        // Mock user credentials
+        private final Map<String, String> users = new HashMap<>() {{
+            put("alice", "password123");
+            put("bob", "securepass");
+        }};
+
+        @PostMapping("/login")
+        public Map<String, String> login(@RequestParam String username,
+                                         @RequestParam String password) {
+            if (users.containsKey(username) && users.get(username).equals(password)) {
+                String token = Jwts.builder()
+                        .setSubject(username)
+                        .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                        .signWith(SECRET_KEY)
+                        .compact();
+                return Map.of("token", token);
+            }
+            throw new RuntimeException("Invalid username or password");
+        }
+    }
+
+    // --- Banking API Controller ---
+    @RestController
+    @RequestMapping("/api")
+    public static class BankingController {
+
+        @GetMapping("/balance")
+        public Map<String, Object> getBalance(@RequestHeader("Authorization") String authHeader) {
+            String username = Jwts.parserBuilder()
+                    .setSigningKey(SECRET_KEY)
+                    .build()
+                    .parseClaimsJws(authHeader.substring(7))
+                    .getBody()
+                    .getSubject();
+            // Mock balance
+            return Map.of("user", username, "balance", 5000.00);
+        }
+
+        @PostMapping("/transfer")
+        public Map<String, Object> transfer(@RequestHeader("Authorization") String authHeader,
+                                            @RequestParam String to,
+                                            @RequestParam double amount) {
+            String username = Jwts.parserBuilder()
+                    .setSigningKey(SECRET_KEY)
+                    .build()
+                    .parseClaimsJws(authHeader.substring(7))
+                    .getBody()
+                    .getSubject();
+            // Mock transfer logic
+            return Map.of("from", username, "to", to, "amount", amount, "status", "success");
+        }
+    }
+}
+ja
