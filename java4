@@ -1,0 +1,118 @@
+import com.mongodb.client.*;
+import org.bson.Document;
+import org.bson.types.ObjectId;
+import static com.mongodb.client.model.Filters.eq;
+
+public class ProductCRUDApp {
+
+    // Product model (inner class)
+    public static class Product {
+        private String id;
+        private String name;
+        private double price;
+        private String category;
+        private boolean inStock;
+
+        public Product(String name, double price, String category, boolean inStock) {
+            this.name = name;
+            this.price = price;
+            this.category = category;
+            this.inStock = inStock;
+        }
+
+        // Getters
+        public String getId() { return id; }
+        public String getName() { return name; }
+        public double getPrice() { return price; }
+        public String getCategory() { return category; }
+        public boolean isInStock() { return inStock; }
+
+        // Setters
+        public void setId(String id) { this.id = id; }
+        public void setName(String name) { this.name = name; }
+        public void setPrice(double price) { this.price = price; }
+        public void setCategory(String category) { this.category = category; }
+        public void setInStock(boolean inStock) { this.inStock = inStock; }
+
+        @Override
+        public String toString() {
+            return "Product{" +
+                    "id='" + id + '\'' +
+                    ", name='" + name + '\'' +
+                    ", price=" + price +
+                    ", category='" + category + '\'' +
+                    ", inStock=" + inStock +
+                    '}';
+        }
+    }
+
+    // CRUD operations
+    private final MongoCollection<Document> collection;
+
+    public ProductCRUDApp() {
+        // Connect to local MongoDB (make sure MongoDB is running)
+        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+        MongoDatabase database = mongoClient.getDatabase("productsdb");
+        this.collection = database.getCollection("products");
+    }
+
+    // CREATE
+    public void createProduct(Product product) {
+        Document doc = new Document("name", product.getName())
+                .append("price", product.getPrice())
+                .append("category", product.getCategory())
+                .append("inStock", product.isInStock());
+        collection.insertOne(doc);
+        System.out.println("✅ Product inserted: " + product.getName());
+    }
+
+    // READ (all)
+    public void readProducts() {
+        System.out.println("\n📦 All Products:");
+        try (MongoCursor<Document> cursor = collection.find().iterator()) {
+            while (cursor.hasNext()) {
+                System.out.println(cursor.next().toJson());
+            }
+        }
+    }
+
+    // READ (by ID)
+    public void readProductById(String id) {
+        Document product = collection.find(eq("_id", new ObjectId(id))).first();
+        System.out.println("\n🔍 Product by ID:");
+        System.out.println(product != null ? product.toJson() : "Product not found.");
+    }
+
+    // UPDATE
+    public void updateProduct(String id, double newPrice) {
+        collection.updateOne(eq("_id", new ObjectId(id)),
+                new Document("$set", new Document("price", newPrice)));
+        System.out.println("✏️ Product updated with new price: " + newPrice);
+    }
+
+    // DELETE
+    public void deleteProduct(String id) {
+        collection.deleteOne(eq("_id", new ObjectId(id)));
+        System.out.println("🗑️ Product deleted (ID: " + id + ")");
+    }
+
+    // MAIN method (demo)
+    public static void main(String[] args) {
+        ProductCRUDApp crud = new ProductCRUDApp();
+
+        // CREATE
+        Product newProduct = new Product("Laptop", 1200.0, "Electronics", true);
+        crud.createProduct(newProduct);
+
+        // READ all
+        crud.readProducts();
+
+        // To test UPDATE and DELETE, get the actual _id from your console or MongoDB Compass
+
+        // Example (replace with real ObjectId from your DB):
+        // String productId = "653b8cba9f1b9fcae2b7f2a4";
+        // crud.readProductById(productId);
+        // crud.updateProduct(productId, 1300.0);
+        // crud.deleteProduct(productId);
+    }
+}
