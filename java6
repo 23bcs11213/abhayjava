@@ -1,0 +1,129 @@
+import com.mongodb.client.*;
+import org.bson.Document;
+import org.bson.types.ObjectId;
+
+import java.util.*;
+import static com.mongodb.client.model.Filters.eq;
+
+public class EcommerceCatalog {
+
+    private final MongoCollection<Document> collection;
+
+    // Constructor: connect to MongoDB
+    public EcommerceCatalog() {
+        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+        MongoDatabase database = mongoClient.getDatabase("ecommerceDB");
+        this.collection = database.getCollection("products");
+    }
+
+    // CREATE product
+    public void addProduct() {
+        Scanner sc = new Scanner(System.in);
+
+        System.out.print("Enter product name: ");
+        String name = sc.nextLine();
+        System.out.print("Enter product price: ");
+        double price = sc.nextDouble();
+        sc.nextLine();
+
+        // Category (nested object)
+        System.out.print("Enter category ID: ");
+        int catId = sc.nextInt();
+        sc.nextLine();
+        System.out.print("Enter category name: ");
+        String catName = sc.nextLine();
+        Document category = new Document("id", catId).append("name", catName);
+
+        // Variants (list of nested documents)
+        List<Document> variants = new ArrayList<>();
+        System.out.print("How many variants? ");
+        int vCount = sc.nextInt();
+        sc.nextLine();
+        for (int i = 0; i < vCount; i++) {
+            System.out.print("Variant " + (i+1) + " color: ");
+            String color = sc.nextLine();
+            System.out.print("Variant " + (i+1) + " storage: ");
+            String storage = sc.nextLine();
+            variants.add(new Document("color", color).append("storage", storage));
+        }
+
+        // Reviews (list of nested documents)
+        List<Document> reviews = new ArrayList<>();
+        System.out.print("How many reviews? ");
+        int rCount = sc.nextInt();
+        sc.nextLine();
+        for (int i = 0; i < rCount; i++) {
+            System.out.print("Reviewer name: ");
+            String user = sc.nextLine();
+            System.out.print("Rating (1-5): ");
+            int rating = sc.nextInt();
+            sc.nextLine();
+            System.out.print("Comment: ");
+            String comment = sc.nextLine();
+            reviews.add(new Document("user", user)
+                    .append("rating", rating)
+                    .append("comment", comment));
+        }
+
+        Document product = new Document("name", name)
+                .append("price", price)
+                .append("category", category)
+                .append("variants", variants)
+                .append("reviews", reviews);
+
+        collection.insertOne(product);
+        System.out.println("✅ Product added successfully!");
+    }
+
+    // READ all products
+    public void listAllProducts() {
+        System.out.println("\n📦 Product Catalog:");
+        try (MongoCursor<Document> cursor = collection.find().iterator()) {
+            while (cursor.hasNext()) {
+                Document doc = cursor.next();
+                System.out.println(doc.toJson());
+            }
+        }
+    }
+
+    // READ by ID
+    public void getProductById() {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter Product ID: ");
+        String id = sc.nextLine();
+
+        Document product = collection.find(eq("_id", new ObjectId(id))).first();
+        if (product == null) {
+            System.out.println("❌ Product not found.");
+        } else {
+            System.out.println("🛍️ Product Details:\n" + product.toJson());
+        }
+    }
+
+    // UPDATE product price
+    public void updateProductPrice() {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter Product ID: ");
+        String id = sc.nextLine();
+        System.out.print("Enter new price: ");
+        double newPrice = sc.nextDouble();
+
+        collection.updateOne(eq("_id", new ObjectId(id)),
+                new Document("$set", new Document("price", newPrice)));
+        System.out.println("✏️ Product price updated.");
+    }
+
+    // DELETE product
+    public void deleteProduct() {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter Product ID: ");
+        String id = sc.nextLine();
+
+        collection.deleteOne(eq("_id", new ObjectId(id)));
+        System.out.println("🗑️ Product deleted.");
+    }
+
+    // MAIN MENU
+    public static void main(String[] args) {
+        EcommerceCatalog app = new EcommerceCatalog();
+        Scanner sc = new Scanner(
